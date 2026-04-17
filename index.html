@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sales Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+  header{background:#1e293b;padding:18px 32px;border-bottom:1px solid #334155;display:flex;align-items:center;gap:12px}
+  header h1{font-size:1.5rem;color:#f1f5f9}
+  .main{padding:24px 32px}
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+  .kpi{background:#1e293b;border-radius:12px;padding:20px;border-left:4px solid #3b82f6;text-align:center}
+  .kpi.green{border-color:#22c55e}.kpi.red{border-color:#ef4444}.kpi.yellow{border-color:#f59e0b}
+  .kpi h3{font-size:.8rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+  .kpi .val{font-size:2rem;font-weight:700;color:#f1f5f9}
+  .kpi .pct{font-size:.85rem;color:#94a3b8;margin-top:4px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+  .card{background:#1e293b;border-radius:12px;padding:20px}
+  .card h2{font-size:1rem;color:#94a3b8;margin-bottom:16px;font-weight:600}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .form-group{display:flex;flex-direction:column;gap:6px}
+  label{font-size:.8rem;color:#94a3b8;font-weight:500}
+  input,select,textarea{background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:10px 12px;font-size:.9rem;width:100%;outline:none;transition:border .2s}
+  input:focus,select:focus{border-color:#3b82f6}
+  .btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:.9rem;font-weight:600;transition:all .2s;margin-top:8px;width:100%}
+  .btn-primary{background:#3b82f6;color:#fff}.btn-success{background:#22c55e;color:#fff}.btn-danger{background:#ef4444;color:#fff}
+  .update-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{background:#0f172a;color:#94a3b8;padding:10px 14px;text-align:left;font-size:.75rem;text-transform:uppercase}
+  td{padding:10px 14px;border-bottom:1px solid #0f172a;color:#e2e8f0}
+  tr:hover td{background:#0f172a}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:600}
+  .badge-live{background:#14532d;color:#22c55e}.badge-demo{background:#451a03;color:#f59e0b}.badge-nc{background:#450a0a;color:#ef4444}
+  .insights{list-style:none;display:flex;flex-direction:column;gap:10px}
+  .insights li{background:#0f172a;border-radius:8px;padding:12px 16px;border-left:3px solid #3b82f6;font-size:.9rem;color:#cbd5e1}
+  #toast{position:fixed;bottom:24px;right:24px;background:#22c55e;color:#fff;padding:12px 24px;border-radius:10px;font-weight:600;display:none;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+  #toast.error{background:#ef4444}
+  .section-title{font-size:1.1rem;font-weight:700;color:#f1f5f9;margin-bottom:16px}
+  .chart-container{position:relative;height:220px}
+  .loading{text-align:center;padding:40px;color:#94a3b8}
+  #configBanner{background:#1e40af;color:#fff;padding:12px 24px;text-align:center;font-size:.9rem}
+  #configBanner a{color:#93c5fd}
+</style>
+</head>
+<body>
+
+<div id="configBanner" style="display:none">
+  ⚠️ Apps Script URL not configured. <a href="#" onclick="promptConfig()">Click here to set it up</a>
+</div>
+
+<header>
+  <span>📊</span>
+  <h1>Sales Demo Dashboard</h1>
+</header>
+
+<div class="main">
+  <div class="kpi-row">
+    <div class="kpi"><h3>Total Clients</h3><div class="val" id="kpi-total">—</div></div>
+    <div class="kpi green"><h3>Live (Converted)</h3><div class="val" id="kpi-live">—</div><div class="pct" id="kpi-live-pct"></div></div>
+    <div class="kpi red"><h3>Not Converted</h3><div class="val" id="kpi-nc">—</div><div class="pct" id="kpi-nc-pct"></div></div>
+    <div class="kpi yellow"><h3>In Demo</h3><div class="val" id="kpi-demo">—</div><div class="pct" id="kpi-demo-pct"></div></div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <div class="section-title">➕ Add New Client</div>
+      <form id="addForm">
+        <div class="form-grid">
+          <div class="form-group"><label>Company Name *</label><input type="text" id="company" required/></div>
+          <div class="form-group"><label>Demo Start Date</label><input type="date" id="demo_date"/></div>
+          <div class="form-group">
+            <label>Challenge Type</label>
+            <select id="challenge">
+              <option>Race</option><option>Streak</option><option>Marathon</option><option>Weekly Custom</option><option>Journey</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="status"><option>Demo</option><option>Live</option><option>Not Converted</option></select>
+          </div>
+          <div class="form-group"><label>Sales Rep</label><input type="text" id="sales_rep"/></div>
+          <div class="form-group"><label>Notes</label><input type="text" id="notes"/></div>
+        </div>
+        <button type="submit" class="btn btn-primary">Add Client</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="section-title">✏️ Update Client Status</div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Select Client</label><select id="updateSelect"></select>
+      </div>
+      <div class="update-row">
+        <div class="form-group">
+          <label>New Status</label>
+          <select id="updateStatus"><option>Demo</option><option>Live</option><option>Not Converted</option></select>
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <input type="text" id="updateReason" placeholder="e.g. Signed contract"/>
+        </div>
+      </div>
+      <button class="btn btn-success" onclick="updateClient()">Update Status</button>
+
+      <div style="margin-top:24px">
+        <div class="section-title">🗑️ Delete Client</div>
+        <div class="form-group"><label>Select Client</label><select id="deleteSelect"></select></div>
+        <button class="btn btn-danger" onclick="deleteClient()">Delete Client</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card"><h2>Overall Conversion Breakdown</h2><div class="chart-container"><canvas id="pieChart"></canvas></div></div>
+    <div class="card"><h2>Status by Challenge Type</h2><div class="chart-container"><canvas id="barChart"></canvas></div></div>
+  </div>
+
+  <div class="row">
+    <div class="card"><h2>Conversion % by Challenge Type</h2><div class="chart-container"><canvas id="convChart"></canvas></div></div>
+    <div class="card"><h2>💡 Insights</h2><ul class="insights" id="insights"></ul></div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="section-title">📋 All Clients</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Company</th><th>Demo Date</th><th>Challenge</th><th>Status</th><th>Sales Rep</th><th>Notes</th></tr></thead>
+        <tbody id="clientTable"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ── PASTE YOUR APPS SCRIPT URL HERE ──────────────────────────────────────
+  const APPS_SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE";
+  // ─────────────────────────────────────────────────────────────────────────
+
+  let allClients = [];
+  let pieChart, barChart, convChart;
+  const STATUS_COLORS = {"Live":"#22c55e","Demo":"#f59e0b","Not Converted":"#ef4444"};
+  const CHALLENGES = ["Race","Streak","Marathon","Weekly Custom","Journey"];
+
+  function promptConfig(){
+    const url = prompt("Paste your Google Apps Script URL:");
+    if(url) { localStorage.setItem("APPS_SCRIPT_URL", url); location.reload(); }
+  }
+
+  function getUrl(){
+    return localStorage.getItem("APPS_SCRIPT_URL") || APPS_SCRIPT_URL;
+  }
+
+  window.onload = function(){
+    if(getUrl() === "PASTE_YOUR_APPS_SCRIPT_URL_HERE"){
+      document.getElementById("configBanner").style.display="block";
+    }
+    loadClients();
+  };
+
+  async function api(params){
+    const url = getUrl() + "?" + new URLSearchParams(params);
+    const res = await fetch(url);
+    return res.json();
+  }
+
+  async function apiPost(data){
+    const res = await fetch(getUrl(), {
+      method:"POST",
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  }
+
+  async function loadClients(){
+    try {
+      const data = await api({action:"getAll"});
+      allClients = data;
+      renderAll();
+    } catch(e) {
+      document.getElementById("clientTable").innerHTML = `<tr><td colspan="6" class="loading">Could not load data. Check Apps Script URL.</td></tr>`;
+    }
+  }
+
+  function renderAll(){
+    renderKPIs(); renderTable(); renderCharts(); renderInsights(); populateSelects();
+  }
+
+  function renderKPIs(){
+    const total=allClients.length, live=allClients.filter(c=>c.Status==="Live").length,
+          nc=allClients.filter(c=>c.Status==="Not Converted").length,
+          demo=allClients.filter(c=>c.Status==="Demo").length;
+    document.getElementById("kpi-total").textContent=total;
+    document.getElementById("kpi-live").textContent=live;
+    document.getElementById("kpi-nc").textContent=nc;
+    document.getElementById("kpi-demo").textContent=demo;
+    document.getElementById("kpi-live-pct").textContent=total?(live/total*100).toFixed(1)+"%":"";
+    document.getElementById("kpi-nc-pct").textContent=total?(nc/total*100).toFixed(1)+"%":"";
+    document.getElementById("kpi-demo-pct").textContent=total?(demo/total*100).toFixed(1)+"%":"";
+  }
+
+  function renderTable(){
+    document.getElementById("clientTable").innerHTML = allClients.length
+      ? allClients.map(c=>`<tr>
+          <td>${c["Company Name"]||""}</td><td>${c["Demo Start Date"]||""}</td>
+          <td>${c["Challenge Type"]||""}</td>
+          <td><span class="badge ${c.Status==="Live"?"badge-live":c.Status==="Demo"?"badge-demo":"badge-nc"}">${c.Status}</span></td>
+          <td>${c["Sales Rep"]||"—"}</td><td>${c.Notes||"—"}</td>
+        </tr>`).join("")
+      : `<tr><td colspan="6" class="loading">No clients yet.</td></tr>`;
+  }
+
+  function populateSelects(){
+    const opts = allClients.map(c=>`<option value="${c.ID}">${c["Company Name"]} — ${c.Status}</option>`).join("");
+    document.getElementById("updateSelect").innerHTML = opts;
+    document.getElementById("deleteSelect").innerHTML = opts;
+  }
+
+  function renderCharts(){
+    const statuses=["Live","Demo","Not Converted"];
+    if(pieChart) pieChart.destroy();
+    pieChart=new Chart(document.getElementById("pieChart"),{
+      type:"doughnut",
+      data:{labels:statuses,datasets:[{data:statuses.map(s=>allClients.filter(c=>c.Status===s).length),
+        backgroundColor:["#22c55e","#f59e0b","#ef4444"],borderWidth:2,borderColor:"#1e293b"}]},
+      options:{plugins:{legend:{labels:{color:"#94a3b8"}}},cutout:"55%"}
+    });
+    if(barChart) barChart.destroy();
+    barChart=new Chart(document.getElementById("barChart"),{
+      type:"bar",
+      data:{labels:CHALLENGES,datasets:statuses.map(s=>({
+        label:s,data:CHALLENGES.map(ch=>allClients.filter(c=>c["Challenge Type"]===ch&&c.Status===s).length),
+        backgroundColor:STATUS_COLORS[s]
+      }))},
+      options:{plugins:{legend:{labels:{color:"#94a3b8"}}},
+        scales:{x:{ticks:{color:"#94a3b8"},grid:{color:"#1e293b"}},y:{ticks:{color:"#94a3b8"},grid:{color:"#334155"}}}}
+    });
+    const convData=CHALLENGES.map(ch=>{
+      const g=allClients.filter(c=>c["Challenge Type"]===ch);
+      return g.length?(g.filter(c=>c.Status==="Live").length/g.length*100).toFixed(1):0;
+    });
+    if(convChart) convChart.destroy();
+    convChart=new Chart(document.getElementById("convChart"),{
+      type:"bar",
+      data:{labels:CHALLENGES,datasets:[{label:"Conversion %",data:convData,
+        backgroundColor:convData.map(v=>v>=60?"#22c55e":v>=30?"#f59e0b":"#ef4444")}]},
+      options:{plugins:{legend:{labels:{color:"#94a3b8"}}},
+        scales:{x:{ticks:{color:"#94a3b8"},grid:{color:"#1e293b"}},
+                y:{max:100,ticks:{color:"#94a3b8",callback:v=>v+"%"},grid:{color:"#334155"}}}}
+    });
+  }
+
+  function renderInsights(){
+    const total=allClients.length;
+    if(!total){document.getElementById("insights").innerHTML="<li>No data yet.</li>";return;}
+    const live=allClients.filter(c=>c.Status==="Live").length,
+          nc=allClients.filter(c=>c.Status==="Not Converted").length,
+          demo=allClients.filter(c=>c.Status==="Demo").length,
+          pct=(live/total*100).toFixed(1);
+    const items=[];
+    if(pct>=50) items.push(`Strong conversion at <b>${pct}%</b> — over half of demos going live.`);
+    else if(pct>=30) items.push(`Moderate conversion at <b>${pct}%</b> — follow-up strategy may need review.`);
+    else items.push(`Low conversion at <b>${pct}%</b> — demo-to-close strategy needs attention.`);
+    let best="",bestVal=-1,worst="",worstVal=101;
+    CHALLENGES.forEach(ch=>{
+      const g=allClients.filter(c=>c["Challenge Type"]===ch);
+      if(!g.length)return;
+      const v=g.filter(c=>c.Status==="Live").length/g.length*100;
+      if(v>bestVal){bestVal=v;best=ch;} if(v<worstVal){worstVal=v;worst=ch;}
+    });
+    if(best) items.push(`Best challenge: <b>${best}</b> (${bestVal.toFixed(1)}% live). Lowest: <b>${worst}</b> (${worstVal.toFixed(1)}%).`);
+    if(demo) items.push(`<b>${demo}</b> client(s) still in demo — active pipeline.`);
+    if(nc/total>0.4) items.push(`High loss rate (${(nc/total*100).toFixed(1)}%) — review not-converted notes.`);
+    document.getElementById("insights").innerHTML=items.map(i=>`<li>${i}</li>`).join("");
+  }
+
+  document.getElementById("addForm").addEventListener("submit",async e=>{
+    e.preventDefault();
+    const company=document.getElementById("company").value;
+    if(!company){toast("Company name required","error");return;}
+    await apiPost({action:"add",company,
+      demo_date:document.getElementById("demo_date").value,
+      challenge:document.getElementById("challenge").value,
+      status:document.getElementById("status").value,
+      sales_rep:document.getElementById("sales_rep").value,
+      notes:document.getElementById("notes").value});
+    document.getElementById("addForm").reset();
+    toast("Client added!");
+    loadClients();
+  });
+
+  async function updateClient(){
+    const id=document.getElementById("updateSelect").value,
+          status=document.getElementById("updateStatus").value,
+          reason=document.getElementById("updateReason").value;
+    await apiPost({action:"update",id,status,reason});
+    document.getElementById("updateReason").value="";
+    toast("Status updated!");
+    loadClients();
+  }
+
+  async function deleteClient(){
+    if(!confirm("Delete this client?"))return;
+    await apiPost({action:"delete",id:document.getElementById("deleteSelect").value});
+    toast("Deleted.");
+    loadClients();
+  }
+
+  function toast(msg,type="success"){
+    const t=document.getElementById("toast");
+    t.textContent=msg; t.className=type==="error"?"error":"";
+    t.style.display="block"; setTimeout(()=>t.style.display="none",3000);
+  }
+</script>
+</body>
+</html>
